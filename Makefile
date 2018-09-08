@@ -31,17 +31,17 @@ include $(DEVKITPRO)/libnx/switch_rules
 #     - <libnx folder>/default_icon.jpg
 #---------------------------------------------------------------------------------
 
-APP_TITLE := PlayerNX - PoC video player
+APP_TITLE := PlayerNX - Homebrew video player
 APP_AUTHOR := XorTroll
-APP_VERSION := Pre-beta release
+APP_VERSION := 0.1
 
 TARGET		:=	PlayerNX
-BUILD		:=	build
-SOURCES		:=	Source
-DATA		:=	data
-INCLUDES	:=	Source
+BUILD		:=	Build
+SOURCES		:=	Source Source/Gfx
+DATA		:=	Data
+INCLUDES	:=	Include Include/Gfx
 EXEFS_SRC	:=	exefs_src
-# ROMFS	:=	romfs
+ROMFS	    :=	RomFS
 ICON    := Icon.jpg
 
 #---------------------------------------------------------------------------------
@@ -52,14 +52,14 @@ ARCH	:=	-march=armv8-a -mtune=cortex-a57 -mtp=soft -fPIE
 CFLAGS	:=	-g -Wall -O2 -fpermissive -ffunction-sections \
 			$(ARCH) $(DEFINES)
 
-CFLAGS	+=	$(INCLUDE) -D__SWITCH__ `freetype-config --cflags`
+CFLAGS	+=	$(INCLUDE) -D__SWITCH__
 
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fexceptions -std=gnu++11
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lavformat -lavcodec -lswresample -lswscale -lavutil -lbz2 -lass -ltheora -lvorbis -lfreetype -lcurl -lSDL2_mixer -lmodplug -lmpg123 -lvorbisidec -logg -lSDL2_ttf -lSDL2_gfx -lSDL2_image -lpng -ljpeg `sdl2-config --libs` `freetype-config --libs` -lnx
+LIBS	:= -lavformat -lavcodec -lswresample -lswscale -lavutil -lbz2 -lass -ltheora -lvorbis -logg -lz -lnx
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

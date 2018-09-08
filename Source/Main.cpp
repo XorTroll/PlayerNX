@@ -2,73 +2,99 @@
 
 int main()
 {
-    ifstream ifs("/media/video.mp4");
-    if(!ifs.good())
+    romfsInit();
+    Gfx::init();
+    start:
+    vector<string> vids = Player::getVideoFiles();
+    Gfx::drawImage(0, 0, "romfs:/Main.jpg");
+    u32 selected = 0;
+    if(vids.empty()) Gfx::drawText(75, 130, "No video files were found.\nPlace them at 'sdmc:/media' folder.\nSupported formats: MP4, MKV, 3GP, AVI, FLV, WMV, WEBM", { 255, 255, 255, 255 }, 20);
+    else
     {
-        gfxInitDefault();
-        consoleInit(NULL);
-        cout << endl << endl << endl << "    " << "PlayerNX - PoC video player, by XorTroll (using ffmpeg)" << endl << endl << endl;
-        cout << endl << endl << "Video file was not found. Place it under 'sdmc:/media/video.mp4'." << endl << " - Press A to exit this application.";
-        while(appletMainLoop())
+        u32 bx = 50;
+        u32 by = 120;
+        for(u32 i = 0; i < vids.size(); i++)
         {
-            hidScanInput();
-            if(hidKeysDown(CONTROLLER_P1_AUTO) & KEY_A)
+            Gfx::RGBA color = { 255, 255, 255, 255 };
+            if(i == selected) color = { 180, 180, 255, 255 };
+            if(i > 20)
             {
-                gfxExit();
-                return 0;
+                bx += 500;
+                if(i == 20) by = 120;
             }
-            gfxFlushBuffers();
-            gfxSwapBuffers();
-            gfxWaitForVsync();
+            Gfx::drawText(bx, by, vids[i], color, 18);
+            by += 25;
         }
     }
-    ifs.close();
-    gfxInitDefault();
-    consoleInit(NULL);
-    cout << endl << endl << endl << "    " << "PlayerNX - PoC video player, by XorTroll (using ffmpeg)" << endl << endl << endl;
-    cout << endl << endl << " - Press A to start playing the video: 'sdmc:/media/video.mp4'.";
-    cout << endl << endl << "Controls during playback:";
-    cout << endl << endl << " - Press Plus or Minus to stop video playback.";
-    cout << endl << " - Press X to pause/resume video playback.";
-    cout << endl << " - Press Y to fast forward (1x, 2x, 4x or 8x and start again)";
-    cout << endl << endl << "This is a PoC video player, which will be improved. Known issues:";
-    cout << endl << endl << " - No audio support, still needs to be added";
-    cout << endl << " - Videos play with some lag";
-    cout << endl << endl << "Enjoy using this PoC video player!";
     while(appletMainLoop())
     {
         hidScanInput();
         u64 k = hidKeysDown(CONTROLLER_P1_AUTO);
-        if(k & KEY_A)
-        {
-            gfxExit();
-            break;
-        }
+        if((k & KEY_A) & (!vids.empty())) break;
         else if((k & KEY_PLUS) || (k & KEY_MINUS))
         {
-            gfxExit();
+            Gfx::exit();
+            romfsExit();
             return 0;
         }
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gfxWaitForVsync();
+        else if(k & KEY_UP)
+        {
+            if(selected > 0)
+            {
+                selected--;
+                u32 bx = 50;
+                u32 by = 120;
+                for(u32 i = 0; i < vids.size(); i++)
+                {
+                    Gfx::RGBA color = { 255, 255, 255, 255 };
+                    if(i == selected) color = { 180, 180, 255, 255 };
+                    if(i > 20)
+                    {
+                        bx += 500;
+                        if(i == 20) by = 120;
+                    }
+                    Gfx::drawText(bx, by, vids[i], color, 18);
+                    by += 25;
+                }
+            }
+        }
+        else if(k & KEY_DOWN)
+        {
+            if(selected < (vids.size() - 1))
+            {
+                selected++;
+                u32 bx = 50;
+                u32 by = 120;
+                for(u32 i = 0; i < vids.size(); i++)
+                {
+                    Gfx::RGBA color = { 255, 255, 255, 255 };
+                    if(i == selected) color = { 180, 180, 255, 255 };
+                    if(i > 20)
+                    {
+                        bx += 500;
+                        if(i == 20) by = 120;
+                    }
+                    Gfx::drawText(bx, by, vids[i], color, 18);
+                    by += 25;
+                }
+            }
+        }
+        Gfx::flush();
     }
-    gfxExit();
-    Player::playbackInit("/media/video.mp4");
+    Gfx::clear({ 255, 255, 255, 255 });
+    Player::playbackInit("/media/" + vids[selected]);
     while(appletMainLoop() && Player::playbackLoop());
-    gfxInitDefault();
-    consoleInit(NULL);
-    cout << endl << endl << endl << "    " << "PlayerNX - PoC video player, by XorTroll (using ffmpeg)" << endl << endl << endl;
-    cout << endl << "Playback finished." << endl << endl << " - Press A to exit this application.";
+    Gfx::drawImage(0, 0, "romfs:/Main.jpg");
+    Gfx::drawText(75, 130, "Video playback finished.\n\nPress A to go back to the menu.\nPress Plus or Minus to exit PlayerNX.", { 255, 255, 255, 255 }, 20);
     while(appletMainLoop())
     {
         hidScanInput();
         u64 k = hidKeysDown(CONTROLLER_P1_AUTO);
-        if(k & KEY_A) break;
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gfxWaitForVsync();
+        if(k & KEY_A) goto start;
+        else if((k & KEY_PLUS) || (k & KEY_MINUS)) break;
+        Gfx::flush();
     }
-    gfxExit();
+    Gfx::exit();
+    romfsExit();
     return 0;
 }

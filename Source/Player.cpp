@@ -1,8 +1,5 @@
 #include "Player.hpp"
 
-u8 *framebuf;
-u32 fwidth;
-u32 fheight;
 bool ffinit = false;
 bool stop = false;
 bool pause = false;
@@ -23,18 +20,15 @@ void Player::playbackInit(string VideoPath)
 {
     if(!ffinit)
     {
-        gfxExit();
-        gfxInitDefault();
-        framebuf = gfxGetFramebuffer(&fwidth, &fheight);
         frame = av_frame_alloc();
         rgbframe = av_frame_alloc();
         pkt = av_packet_alloc();
         av_register_all();
         avcodec_register_all();
         av_log_set_level(AV_LOG_QUIET);
-        ret = avformat_open_input(&ctx_format, VideoPath.c_str(), nullptr, nullptr);
-        if(ret != 0) Player::playbackThrowError("Error opening file. Is it a valid MP4 video?");
-        if(avformat_find_stream_info(ctx_format, nullptr) < 0) Player::playbackThrowError("Error finding stream info.");
+        ret = avformat_open_input(&ctx_format, VideoPath.c_str(), NULL, NULL);
+        if(ret != 0) Player::playbackThrowError("Error opening file. Is it a valid video?");
+        if(avformat_find_stream_info(ctx_format, NULL) < 0) Player::playbackThrowError("Error finding stream info.");
         av_dump_format(ctx_format, 0, VideoPath.c_str(), false);
         for(int i = 0; i < ctx_format->nb_streams; i++) if(ctx_format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
@@ -42,12 +36,12 @@ void Player::playbackInit(string VideoPath)
             vid_stream = ctx_format->streams[i];
             break;
         }
-        if(!vid_stream) Player::playbackThrowError("Error getting video stream from MP4.");
+        if(!vid_stream) Player::playbackThrowError("Error getting video stream.");
         codec = avcodec_find_decoder(vid_stream->codecpar->codec_id);
         if(!codec) Player::playbackThrowError("Error finding a decoder (strange)");
         ctx_codec = avcodec_alloc_context3(codec);
         if(avcodec_parameters_to_context(ctx_codec, vid_stream->codecpar) < 0) Player::playbackThrowError("Error sending parameters to codec context.");
-        if(avcodec_open2(ctx_codec, codec, nullptr) < 0) Player::playbackThrowError("Error opening codec with context.");
+        if(avcodec_open2(ctx_codec, codec, NULL) < 0) Player::playbackThrowError("Error opening codec with context.");
         ffinit = true;
     }
 }
@@ -71,12 +65,10 @@ bool Player::playbackLoop()
                     if(iffw == 1) newffd = 2;
                     else if(iffw == 2) newffd = 4;
                     else if(iffw == 4) newffd = 8;
-                    else if(iffw == 8) newffd = 1;
+                    else newffd = 1;
                     Player::playbackSetFastForward(newffd);
                 }
-                gfxFlushBuffers();
-                gfxSwapBuffers();
-                gfxWaitForVsync();
+                Gfx::flush();
             }
             else if(av_read_frame(ctx_format, pkt) >= 0)
             {
@@ -110,24 +102,23 @@ bool Player::playbackLoop()
                         rgbframe->format = AV_PIX_FMT_RGB24;
                         av_image_alloc(rgbframe->data, rgbframe->linesize, rgbframe->width, rgbframe->height, rgbframe->format, 32);
                         sws_scale(ctx_sws, frame->data, frame->linesize, 0, frame->height, rgbframe->data, rgbframe->linesize);
+                        u32 w = 1280;
+                        u8 *fbuf = gfxGetFramebuffer(&w, NULL);
                         for(u32 i = 0; i < rgbframe->width; i++) for(u32 j = 0; j < rgbframe->height; j++)
                         {
                             u64 pos = (rgbframe->width * j + i) * 3;
-                            u64 fpos = (j * fwidth + i) * 4; 
-                            framebuf[fpos] = rgbframe->data[0][pos];
-                            framebuf[fpos + 1] = rgbframe->data[0][pos + 1];
-                            framebuf[fpos + 2] = rgbframe->data[0][pos + 2];
-                            framebuf[fpos + 3] = 0xff;
+                            u64 fpos = (j * w + i) * 4; 
+                            fbuf[fpos] = rgbframe->data[0][pos];
+                            fbuf[fpos + 1] = rgbframe->data[0][pos + 1];
+                            fbuf[fpos + 2] = rgbframe->data[0][pos + 2];
+                            fbuf[fpos + 3] = 0xff;
                         }
-                        gfxFlushBuffers();
-                        gfxSwapBuffers();
-                        gfxWaitForVsync();
-                        av_freep(&rgbframe->data[0]);
-                        av_frame_unref(rgbframe);
-                        av_frame_unref(frame);
+                        Gfx::flush();
+                        av_freep(rgbframe->data);
                     }
                 }
             }
+            else stop = true;
         }
         if(stop) Player::playbackExit();
         return false;
@@ -156,13 +147,19 @@ void Player::playbackStop()
 
 void Player::playbackExit()
 {
-    avformat_close_input(&ctx_format);
-    av_packet_unref(pkt);
-    av_frame_unref(rgbframe);
-    av_frame_unref(frame);
-    avcodec_free_context(&ctx_codec);
-    avformat_free_context(ctx_format);
-    gfxExit();
+    if(ffinit)
+    {
+        avformat_close_input(&ctx_format);
+        av_packet_unref(pkt);
+        av_frame_unref(rgbframe);
+        av_frame_unref(frame);
+        avcodec_free_context(&ctx_codec);
+        avformat_free_context(ctx_format);
+        if(stop) stop = false;
+        if(pause) pause = false;
+        iffw = 1;
+        ffinit = false;
+    }
 }
 
 void Player::playbackSetFastForward(int Power)
@@ -172,10 +169,11 @@ void Player::playbackSetFastForward(int Power)
 
 void Player::playbackThrowError(string Error)
 {
+    Gfx::exit();
     Player::playbackExit();
     gfxInitDefault();
     consoleInit(NULL);
-    cout << endl << endl << "PlayerNX was closed due to an error: " << endl << endl << endl << " - " << Error << endl << endl << " - Press A to exit this application.";
+    cout << endl << endl << "PlayerNX was closed due to an error: " << endl << endl << endl << " - " << Error << endl << endl << " - Press A to exit PlayerNX.";
     while(true)
     {
         hidScanInput();
@@ -186,5 +184,24 @@ void Player::playbackThrowError(string Error)
         gfxWaitForVsync();
     }
     gfxExit();
+    romfsExit();
     exit(0);
+}
+
+vector<string> Player::getVideoFiles()
+{
+    vector<string> vids;
+    struct dirent *de;
+    DIR *dir = opendir("sdmc:/media");
+    if(dir)
+    {
+        while(true)
+        {
+            de = readdir(dir);
+            if(de == NULL) break;
+            vids.push_back(string(de->d_name));
+        }
+    }
+    closedir(dir);
+    return vids;
 }
